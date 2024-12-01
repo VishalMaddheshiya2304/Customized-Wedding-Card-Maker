@@ -9,7 +9,6 @@ function App() {
     venue: "",
     date: "",
     time: "12:00", // Default time in 12-hour format
-    contact: "",
   });
 
   const [draggedItem, setDraggedItem] = useState(null);
@@ -20,7 +19,6 @@ function App() {
     venue: { x: 100, y: 200, fontSize: 20, type: "text" },
     date: { x: 100, y: 300, fontSize: 20, type: "text" },
     time: { x: 100, y: 350, fontSize: 20, type: "text" },
-    contact: { x: 100, y: 400, fontSize: 20, type: "text" },
     bridePhoto: { x: 50, y: 100, size: 100, type: "photo" },
     groomPhoto: { x: 250, y: 100, size: 100, type: "photo" },
   });
@@ -43,7 +41,10 @@ function App() {
     }
   };
 
-  const handleDragStart = (item) => setDraggedItem(item);
+  const handleDragStart = (item, e) => {
+    e.preventDefault(); // Prevent default behavior to avoid issues with mobile drag events
+    setDraggedItem(item);
+  };
 
   const handleDrag = (e) => {
     if (!draggedItem) return;
@@ -51,12 +52,17 @@ function App() {
     const card = document.getElementById("card");
     const { left, top, width, height } = card.getBoundingClientRect();
 
+    const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+    const clientY = e.clientY || (e.touches && e.touches[0].clientY);
+
+    if (clientX === undefined || clientY === undefined) return;
+
     const x = Math.min(
-      Math.max(e.clientX - left, 0),
+      Math.max(clientX - left, 0),
       width - (draggedItem.includes("Photo") ? positions[draggedItem].size : 10)
     );
     const y = Math.min(
-      Math.max(e.clientY - top, 0),
+      Math.max(clientY - top, 0),
       height - (draggedItem.includes("Photo") ? positions[draggedItem].size : 10)
     );
 
@@ -72,12 +78,10 @@ function App() {
 
   const handleDrop = () => setDraggedItem(null);
 
-  // Function to select an item
   const handleSelectItem = (item) => {
     setSelectedItem(item);
   };
 
-  // Function to resize selected item
   const handleResize = (delta) => {
     if (!selectedItem) return;
 
@@ -85,11 +89,9 @@ function App() {
     const item = updatedPositions[selectedItem];
 
     if (item.type === "text") {
-      // Resize text by fontSize
-      item.fontSize = Math.max(10, item.fontSize + delta); // Prevent font size from going too small
+      item.fontSize = Math.max(10, item.fontSize + delta);
     } else if (item.type === "photo") {
-      // Resize photo by size (width & height)
-      item.size = Math.max(50, item.size + delta); // Prevent photo size from going too small
+      item.size = Math.max(50, item.size + delta);
     }
 
     setPositions(updatedPositions);
@@ -102,16 +104,20 @@ function App() {
   };
 
   const formatTime = (time) => {
-    // Convert time to 12-hour format if needed
     const [hour, minute] = time.split(":");
     let formattedHour = parseInt(hour, 10);
-    if (formattedHour > 12) {
-      formattedHour -= 12;
+    let ampm = "AM";
+
+    if (formattedHour >= 12) {
+      ampm = "PM";
+      if (formattedHour > 12) {
+        formattedHour -= 12;
+      }
     } else if (formattedHour === 0) {
-      formattedHour = 12;
+      formattedHour = 12; // Midnight case
     }
 
-    return `${formattedHour}:${minute}`;
+    return `${formattedHour}:${minute} ${ampm}`;
   };
 
   const handleDownload = () => {
@@ -125,7 +131,7 @@ function App() {
   };
 
   return (
-    <div className="App" onMouseMove={handleDrag} onMouseUp={handleDrop}>
+    <div className="App" onMouseMove={handleDrag} onMouseUp={handleDrop} onTouchMove={handleDrag} onTouchEnd={handleDrop}>
       <h1>Wedding Card Maker</h1>
       <div className="input-section">
         <input
@@ -162,13 +168,6 @@ function App() {
           onChange={handleDetailChange}
         />
         <input
-          type="tel"
-          name="contact"
-          placeholder="Contact No."
-          value={details.contact}
-          onChange={handleDetailChange}
-        />
-        <input
           type="file"
           accept="image/*"
           onChange={(e) => handlePhotoUpload(e, "bridePhoto")}
@@ -191,15 +190,14 @@ function App() {
                 top: positions[key].y,
                 fontSize: `${positions[key].fontSize}px`,
               }}
-              onMouseDown={() => {
-                handleDragStart(key);
-                handleSelectItem(key); // Select item when clicked
-              }}
+              onMouseDown={(e) => handleDragStart(key, e)}
+              onTouchStart={(e) => handleDragStart(key, e)} // Handle touch events
+              onClick={() => handleSelectItem(key)} // Select item when clicked
             >
               {key === "date"
                 ? formatDate(details[key])
                 : key === "time"
-                ? formatTime(details[key]) // Display time in 12-hour format
+                ? formatTime(details[key]) // Display time in 12-hour format with AM/PM
                 : details[key]}
             </div>
           )
@@ -220,10 +218,9 @@ function App() {
                 borderRadius: "50%",
                 objectFit: "cover",
               }}
-              onMouseDown={() => {
-                handleDragStart(key);
-                handleSelectItem(key); // Select item when clicked
-              }}
+              onMouseDown={(e) => handleDragStart(key, e)}
+              onTouchStart={(e) => handleDragStart(key, e)} // Handle touch events
+              onClick={() => handleSelectItem(key)} // Select item when clicked
             />
           )
         ))}
